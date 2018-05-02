@@ -48,15 +48,16 @@ class WireTransaction(componentGroups: List<ComponentGroup>, val privacySalt: Pr
     @DeleteForDJVM
     constructor(componentGroups: List<ComponentGroup>) : this(componentGroups, PrivacySalt())
 
-    @Deprecated("Required only for backwards compatibility purposes.", ReplaceWith("WireTransaction(val componentGroups: List<ComponentGroup>, override val privacySalt: PrivacySalt)"), DeprecationLevel.WARNING)
+    @Deprecated("Required only in some unit-tests and for backwards compatibility purposes.", ReplaceWith("WireTransaction(val componentGroups: List<ComponentGroup>, override val privacySalt: PrivacySalt)"), DeprecationLevel.WARNING)
     @DeleteForDJVM
-    @JvmOverloads constructor(inputs: List<StateRef>,
-                              attachments: List<SecureHash>,
-                              outputs: List<TransactionState<ContractState>>,
-                              commands: List<Command<*>>,
-                              notary: Party?,
-                              timeWindow: TimeWindow?,
-                              privacySalt: PrivacySalt = PrivacySalt()
+    @JvmOverloads constructor(
+            inputs: List<StateRef>,
+            attachments: List<SecureHash>,
+            outputs: List<TransactionState<ContractState>>,
+            commands: List<Command<*>>,
+            notary: Party?,
+            timeWindow: TimeWindow?,
+            privacySalt: PrivacySalt = PrivacySalt()
     ) : this(createComponentGroups(inputs, outputs, commands, attachments, notary, timeWindow), privacySalt)
 
     init {
