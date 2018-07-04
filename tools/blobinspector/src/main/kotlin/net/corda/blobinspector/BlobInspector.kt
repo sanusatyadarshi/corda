@@ -2,6 +2,7 @@ package net.corda.blobinspector
 
 import com.fasterxml.jackson.core.JsonFactory
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
+import com.google.common.io.BaseEncoding
 import com.jcabi.manifests.Manifests
 import net.corda.client.jackson.JacksonSupport
 import net.corda.core.internal.isRegularFile
@@ -26,7 +27,7 @@ import java.nio.file.Paths
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
-    val main = Main()
+    val main = BlobInspector()
     try {
         CommandLine.run(main, *args)
     } catch (e: ExecutionException) {
@@ -41,18 +42,21 @@ fun main(args: Array<String>) {
 }
 
 @Command(
-        name = "Blob Inspector",
+        name = "blob-inspector",
         versionProvider = CordaVersionProvider::class,
-        mixinStandardHelpOptions = true, // add --help and --version options,
+        mixinStandardHelpOptions = true,   // add --help and --version options,
         showDefaultValues = true,
-        description = ["Inspect AMQP serialised binary blobs"]
+        description = ["Convert AMQP serialised binary blobs to text"]
 )
-class Main : Runnable {
+class BlobInspector : Runnable {
     @Parameters(index = "0", paramLabel = "SOURCE", description = ["URL or file path to the blob"], converter = [SourceConverter::class])
     private var source: URL? = null
 
     @Option(names = ["--format"], paramLabel = "type", description = ["Output format. Possible values: [YAML, JSON]"])
-    private var formatType: FormatType = FormatType.YAML
+    private var formatType: OutputFormatType = OutputFormatType.YAML
+
+    @Option(names = ["--input-format"], paramLabel = "type", description = ["Input format. If the file can't be decoded with the given value it's auto-detected, so you should never normally need to specify this. Possible values: [BINARY, HEX, BASE64]"])
+    private var inputFormatType: InputFormatType = InputFormatType.BINARY
 
     @Option(names = ["--full-parties"],
             description = ["Display the owningKey and certPath properties of Party and PartyAndReference objects respectively"])
@@ -69,15 +73,12 @@ class Main : Runnable {
             System.setProperty("logLevel", "trace")
         }
 
-        val bytes = source!!.readBytes().run {
-            require(size > amqpMagic.size) { "Insufficient bytes for AMQP blob" }
-            sequence()
-        }
-
-        require(bytes.take(amqpMagic.size) == amqpMagic) { "Not an AMQP blob" }
+        val inputBytes = source!!.readBytes()
+        val bytes = parseToBinaryRelaxed(inputFormatType, inputBytes)
+                ?: throw IllegalArgumentException("Error: this input does not appear to be encoded in Corda's AMQP extended format, sorry.")
 
         if (schema) {
-            val envelope = DeserializationInput.getEnvelope(bytes)
+            val envelope = DeserializationInput.getEnvelope(bytes.sequence())
             println(envelope.schema)
             println()
             println(envelope.transformsSchema)
@@ -87,8 +88,8 @@ class Main : Runnable {
         initialiseSerialization()
 
         val factory = when (formatType) {
-            FormatType.YAML -> YAMLFactory()
-            FormatType.JSON -> JsonFactory()
+            OutputFormatType.YAML -> YAMLFactory()
+            OutputFormatType.JSON -> JsonFactory()
         }
         val mapper = JacksonSupport.createNonRpcMapper(factory, fullParties)
 
@@ -96,6 +97,32 @@ class Main : Runnable {
         val deserialized = bytes.deserialize<Any>(context = SerializationFactory.defaultFactory.defaultContext.withLenientCarpenter())
         println(deserialized.javaClass.name)
         mapper.writeValue(System.out, deserialized)
+    }
+
+    private fun parseToBinaryRelaxed(format: InputFormatType, inputBytes: ByteArray): ByteArray? {
+        // Try the format the user gave us first, then try the others.
+        return parseToBinary(format, inputBytes) ?: parseToBinary(InputFormatType.HEX, inputBytes)
+        ?: parseToBinary(InputFormatType.BASE64, inputBytes) ?: parseToBinary(InputFormatType.BINARY, inputBytes)
+    }
+
+    private fun parseToBinary(format: InputFormatType, inputBytes: ByteArray): ByteArray? {
+        try {
+            val bytes = when (format) {
+                InputFormatType.BINARY -> inputBytes
+                InputFormatType.HEX -> BaseEncoding.base16().decode(String(inputBytes).trim().toUpperCase())
+                InputFormatType.BASE64 -> BaseEncoding.base64().decode(String(inputBytes).trim())
+            }
+            require(bytes.size > amqpMagic.size) { "Insufficient bytes for AMQP blob" }
+            return if (bytes.copyOf(amqpMagic.size).contentEquals(amqpMagic.bytes)) {
+                if (verbose)
+                    println("Parsing input as $format")
+                bytes
+            } else {
+                null   // Not an AMQP blob.
+            }
+        } catch (t: Throwable) {
+            return null   // Failed to parse in some other way.
+        }
     }
 
     private fun initialiseSerialization() {
@@ -112,6 +139,7 @@ private object AMQPInspectorSerializationScheme : AbstractAMQPSerializationSchem
     override fun canDeserializeVersion(magic: CordaSerializationMagic, target: SerializationContext.UseCase): Boolean {
         return magic == amqpMagic && target == SerializationContext.UseCase.P2P
     }
+
     override fun rpcClientSerializerFactory(context: SerializationContext) = throw UnsupportedOperationException()
     override fun rpcServerSerializerFactory(context: SerializationContext) = throw UnsupportedOperationException()
 }
@@ -137,5 +165,6 @@ private class CordaVersionProvider : IVersionProvider {
     }
 }
 
-private enum class FormatType { YAML, JSON }
+private enum class OutputFormatType { YAML, JSON }
+private enum class InputFormatType { BINARY, HEX, BASE64 }
 
