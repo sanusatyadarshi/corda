@@ -29,7 +29,7 @@ internal class RefState : Contract {
     }
 
     override fun verify(tx: LedgerTransaction) = Unit
-    data class State(val owner: Party, val version: Int = 0, override val linearId: UniqueIdentifier = UniqueIdentifier()) : ReferenceState {
+    data class State(val owner: Party, val version: Int = 0, override val linearId: UniqueIdentifier = UniqueIdentifier()) : LinearState {
         override val participants: List<AbstractParty> get() = listOf(owner)
         fun update() = copy(version = version + 1)
     }
@@ -53,7 +53,7 @@ internal class CreateRefState : FlowLogic<SignedTransaction>() {
 }
 
 // A flow to update a specific reference state.
-internal class UpdateRefState(val stateAndRef: StateAndRef<ReferenceState>) : FlowLogic<SignedTransaction>() {
+internal class UpdateRefState(val stateAndRef: StateAndRef<ContractState>) : FlowLogic<SignedTransaction>() {
     @Suspendable
     override fun call(): SignedTransaction {
         val notary = serviceHub.networkMapCache.notaryIdentities.first()
@@ -70,7 +70,7 @@ internal class UpdateRefState(val stateAndRef: StateAndRef<ReferenceState>) : Fl
 // A set of flows to share a stateref with all other nodes in the mock network.
 internal object ShareRefState {
     @InitiatingFlow
-    class Initiator(val stateAndRef: StateAndRef<ReferenceState>) : FlowLogic<Unit>() {
+    class Initiator(val stateAndRef: StateAndRef<ContractState>) : FlowLogic<Unit>() {
         @Suspendable
         override fun call() {
             val sessions = serviceHub.networkMapCache.allNodes.flatMap { it.legalIdentities }.map { initiateFlow(it) }
@@ -101,7 +101,7 @@ internal class UseRefState(val linearId: UniqueIdentifier) : FlowLogic<SignedTra
     override fun call(): SignedTransaction {
         val notary = serviceHub.networkMapCache.notaryIdentities.first()
         val query = QueryCriteria.LinearStateQueryCriteria(linearId = listOf(linearId))
-        val referenceState = serviceHub.vaultService.queryBy<ReferenceState>(query).states.single()
+        val referenceState = serviceHub.vaultService.queryBy<ContractState>(query).states.single()
         return subFlow(FinalityFlow(
                 transaction = serviceHub.signInitialTransaction(TransactionBuilder(notary = notary).apply {
                     addReferenceState(referenceState.referenced())
@@ -155,7 +155,7 @@ class WithReferencedStatesFlowTests {
         nodes[0].services.startFlow(ShareRefState.Initiator(updatedRefState)).resultFuture.getOrThrow()
 
         // 7. Check that we have a valid signed transaction with the updated reference state.
-        val result = useRefTx.getOrThrow() as SignedTransaction
+        val result = useRefTx.getOrThrow()
         assertEquals(updatedRefState.ref, result.tx.references.single())
     }
 

@@ -135,10 +135,6 @@ interface LinearState : ContractState {
 }
 // DOCEND 2
 
-/** Interface to mark states as eligible to be used as reference input states */
-@KeepForDJVM
-interface ReferenceState : LinearState
-
 @KeepForDJVM
 interface SchedulableState : ContractState {
     /**
