@@ -12,6 +12,7 @@ import net.corda.core.internal.FlowStateMachine
 import net.corda.core.node.NetworkParameters
 import net.corda.core.node.ServiceHub
 import net.corda.core.node.ServicesForResolution
+import net.corda.core.node.checkVersion
 import net.corda.core.node.services.AttachmentId
 import net.corda.core.node.services.KeyManagementService
 import net.corda.core.serialization.SerializationContext
@@ -157,13 +158,20 @@ open class TransactionBuilder @JvmOverloads constructor(
         require(intersection.isEmpty()) { "A StateRef cannot be both an input and a reference input in the same transaction." }
     }
 
-    /** Adds a reference input [StateRef] to the transaction. */
+    /**
+     * Adds a reference input [StateRef] to the transaction.
+     *
+     * This feature was added in version 4 of Corda, so is disabled for any Corda networks with a minimum platform
+     * version less than 4.
+     */
     open fun addReferenceState(referencedStateAndRef: ReferencedStateAndRef<*>): TransactionBuilder {
-        val stateAndRef = referencedStateAndRef.stateAndRef
-        checkNotary(stateAndRef)
-        references.add(stateAndRef.ref)
-        checkForInputsAndReferencesOverlap()
-        return this
+        return checkVersion(requiredMinimumVersion = 4) {
+            val stateAndRef = referencedStateAndRef.stateAndRef
+            checkNotary(stateAndRef)
+            references.add(stateAndRef.ref)
+            checkForInputsAndReferencesOverlap()
+            this
+        }
     }
 
     /** Adds an input [StateRef] to the transaction. */

@@ -11,9 +11,12 @@ import net.corda.core.transactions.LedgerTransaction
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.getOrThrow
+import net.corda.node.VersionInfo
+import net.corda.testing.common.internal.testNetworkParameters
 import net.corda.testing.contracts.DummyContract
 import net.corda.testing.contracts.DummyState
 import net.corda.testing.node.internal.InternalMockNetwork
+import net.corda.testing.node.internal.InternalMockNodeParameters
 import net.corda.testing.node.internal.startFlow
 import org.junit.After
 import org.junit.Test
@@ -113,9 +116,15 @@ internal class UseRefState(val linearId: UniqueIdentifier) : FlowLogic<SignedTra
 class WithReferencedStatesFlowTests {
     private val mockNet = InternalMockNetwork(
             cordappPackages = listOf("net.corda.core.flows", "net.corda.testing.contracts"),
-            threadPerNode = true
+            threadPerNode = true,
+            networkParameters = testNetworkParameters(minimumPlatformVersion = 4)
     )
-    private val nodes = (0..1).map { mockNet.createPartyNode() }
+
+    private val nodes = (0..1).map {
+        mockNet.createNode(
+                parameters = InternalMockNodeParameters(version = VersionInfo(4, "Blah", "Blah", "Blah"))
+        )
+    }
 
     @After
     fun stop() {

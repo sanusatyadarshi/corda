@@ -198,7 +198,8 @@ open class InternalMockNetwork(private val cordappPackages: List<String>,
             // The network parameters must be serialised before starting any of the nodes
             networkParametersCopier = NetworkParametersCopier(networkParameters.copy(notaries = notaryInfos))
             @Suppress("LeakingThis")
-            notaryNodes = createNotaries()
+            // Notary nodes need a platform version >= network min platform version.
+            notaryNodes = createNotaries(networkParameters.minimumPlatformVersion)
         } catch (t: Throwable) {
             stopNodes()
             throw t
@@ -213,11 +214,13 @@ open class InternalMockNetwork(private val cordappPackages: List<String>,
     }
 
     @VisibleForTesting
-    internal open fun createNotaries(): List<StartedNode<MockNode>> {
+    internal open fun createNotaries(minimumPlatformVersion: Int): List<StartedNode<MockNode>> {
         return notarySpecs.map { (name, validating) ->
-            createNode(InternalMockNodeParameters(legalName = name, configOverrides = {
-                doReturn(NotaryConfig(validating)).whenever(it).notary
-            }))
+            createNode(InternalMockNodeParameters(
+                    legalName = name,
+                    configOverrides = { doReturn(NotaryConfig(validating)).whenever(it).notary },
+                    version = VersionInfo(minimumPlatformVersion, "Mock release", "Mock revision", "Mock Vendor")
+            ))
         }
     }
 
