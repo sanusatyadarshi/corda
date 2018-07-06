@@ -103,7 +103,7 @@ open class InternalMockNetwork(private val cordappPackages: List<String>,
                                val threadPerNode: Boolean = defaultParameters.threadPerNode,
                                servicePeerAllocationStrategy: InMemoryMessagingNetwork.ServicePeerAllocationStrategy = defaultParameters.servicePeerAllocationStrategy,
                                val notarySpecs: List<MockNetworkNotarySpec> = defaultParameters.notarySpecs,
-                               networkParameters: NetworkParameters = testNetworkParameters(),
+                               val networkParameters: NetworkParameters = testNetworkParameters(),
                                val defaultFactory: (MockNodeArgs) -> MockNode = InternalMockNetwork::MockNode) {
     init {
         // Apache SSHD for whatever reason registers a SFTP FileSystemProvider - which gets loaded by JimFS.
@@ -199,7 +199,7 @@ open class InternalMockNetwork(private val cordappPackages: List<String>,
             networkParametersCopier = NetworkParametersCopier(networkParameters.copy(notaries = notaryInfos))
             @Suppress("LeakingThis")
             // Notary nodes need a platform version >= network min platform version.
-            notaryNodes = createNotaries(networkParameters.minimumPlatformVersion)
+            notaryNodes = createNotaries()
         } catch (t: Throwable) {
             stopNodes()
             throw t
@@ -214,12 +214,13 @@ open class InternalMockNetwork(private val cordappPackages: List<String>,
     }
 
     @VisibleForTesting
-    internal open fun createNotaries(minimumPlatformVersion: Int): List<StartedNode<MockNode>> {
+    internal open fun createNotaries(): List<StartedNode<MockNode>> {
+        val version = VersionInfo(networkParameters.minimumPlatformVersion, "Mock release", "Mock revision", "Mock Vendor")
         return notarySpecs.map { (name, validating) ->
             createNode(InternalMockNodeParameters(
                     legalName = name,
                     configOverrides = { doReturn(NotaryConfig(validating)).whenever(it).notary },
-                    version = VersionInfo(minimumPlatformVersion, "Mock release", "Mock revision", "Mock Vendor")
+                    version = version
             ))
         }
     }
