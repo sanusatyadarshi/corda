@@ -54,4 +54,4 @@ class RejectedCommandException(message: String) : CordaRuntimeException(message)
  */
 @Deprecated("Use ClientRelevantError instead.", replaceWith = ReplaceWith("ClientRelevantError"))
 @CordaSerializable
-interface RpcSerializableError
+interface RpcSerializableError1
