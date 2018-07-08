@@ -32,7 +32,7 @@ class InternalNodeException(private val errorIdentifier: Long? = null) : CordaRu
         const val message = "Something went wrong within the Corda node."
     }
 
-    override fun getErrorId(): Long? {
+    override fun getErrorId(): Short? {
         return errorIdentifier
     }
 }
