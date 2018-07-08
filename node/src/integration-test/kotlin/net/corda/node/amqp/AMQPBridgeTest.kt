@@ -48,7 +48,7 @@ class AMQPBridgeTest {
     @Test
     fun `test acked and nacked messages`() {
         // Create local queue
-        val sourceQueueName = "internal.peers." + BOB.publicKey.toStringShort()
+        val sourceQueueNumber = "internal.peers." + BOB.publicKey.toStringShort()
         val (artemisServer, artemisClient, bridgeManager) = createArtemis(sourceQueueName)
 
         // Pre-populate local queue with 3 messages
